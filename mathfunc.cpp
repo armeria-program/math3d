@@ -17,6 +17,7 @@ extern "C" {
 #include <glm/ext/scalar_relational.hpp>
 #include <glm/ext/vector_relational.hpp>
 #include <glm/gtx/euler_angles.hpp>
+#include <glm/ext/vector_common.hpp>
 
 static const glm::vec4 XAXIS(1, 0, 0, 0);
 static const glm::vec4 YAXIS(0, 1, 0, 0);
@@ -116,54 +117,74 @@ math3d_sub_vec(struct lastack *LS, const float lhs[4], const float rhs[4], float
 	*(glm::vec4*)r = VEC(lhs) - VEC(rhs);
 }
 
-int
-math3d_decompose_scale(const float mat[16], float scale[4]) {
-	int ii;
-	for (ii = 0; ii < 3; ++ii)
-		scale[ii] = glm::length(MAT(mat)[ii]);
-	if (scale[0] == 0 || scale[1] == 0 || scale[2] == 0) {
-		return 1;
-	}
-	scale[3] = 0;
-	return 0;
+// epsilon for pow2
+//#define EPSILON 0.00001f
+// glm::equal(dot , 1.0f, EPSILON)
+
+static inline int
+equal_one(float f) {
+	union {
+		float f;
+		uint32_t n;
+	} u;
+	u.f = f;
+	return ((u.n + 0x1f) & ~0x3f) == 0x3f800000;	// float 1
 }
 
 int
-math3d_decompose_rot(const float mat[16], float quat[4]) {
-	float scale[4];
-	if (math3d_decompose_scale(mat, scale)) {
+math3d_decompose_scale(const float mat[16], float scale[4]) {
+	int ii;
+	scale[3] = 0;
+	for (ii = 0; ii < 3; ++ii) {
+		const float * v = (const float *)&MAT(mat)[ii];
+		float dot = glm::dot(VEC3(v),VEC3(v));
+		if (equal_one(dot)) {
+			scale[ii] = 1.0f;
+		} else {
+			scale[ii] = sqrtf(dot);
+			if (scale[ii] == 0) {
+				// invalid scale, use 1 instead
+				scale[0] = scale[1] = scale[2] = 1.0f;
+				return 1;
+			}
+		}
+	}
+	if (scale[0] == 1.0f && scale[1] == 1.0f && scale[2] == 1.0f) {
 		return 1;
-	} else {
-		glm::quat &q = *(glm::quat *)quat;
-		glm::mat3x3 rotMat(MAT(mat));
+	}
+	return 0;
+}
+
+void
+math3d_decompose_rot(const float mat[16], float quat[4]) {
+	glm::quat &q = *(glm::quat *)quat;
+	glm::mat3x3 rotMat(MAT(mat));
+	float scale[4];
+	if (math3d_decompose_scale(mat, scale) == 0) {
 		int ii;
 		for (ii = 0; ii < 3; ++ii) {
 			rotMat[ii] /= scale[ii];
 		}
-		q = glm::quat_cast(rotMat);
-		return 0;
 	}
+	q = glm::quat_cast(rotMat);
 }
 
-int
+void
 math3d_decompose_matrix(struct lastack *LS, const float *mat) {
 	const glm::mat4x4 &m = *(const glm::mat4x4 *)mat;
 	float trans[4] = { m[3][0] , m[3][1], m[3][2], 1 };
-	int ii;
 	float scale[4];
-	if (math3d_decompose_scale(mat, scale)) {
-		return 1;
-	}
-	
 	glm::mat3x3 rotMat(m);
-	for (ii = 0; ii < 3; ++ii) {
-		rotMat[ii] /= scale[ii];
+	if (!math3d_decompose_scale(mat, scale)) {
+		int ii;
+		for (ii = 0; ii < 3; ++ii) {
+			rotMat[ii] /= scale[ii];
+		}
 	}
 	glm::quat q = glm::quat_cast(rotMat);
 	lastack_pushvec4(LS, trans);
 	lastack_pushquat(LS, &q.x);
 	lastack_pushvec4(LS, scale);
-	return 0;
 }
 
 float
@@ -349,3 +370,43 @@ math3d_rotmat_transform(struct lastack *LS, const float mat[16], const float v[4
 	lastack_pushvec4(LS, &vv.x);
 }
 
+void
+math3d_minmax(struct lastack *LS, const float mat[16], const float v[4], float minv[4], float maxv[4]){
+	const glm::vec4 vv = mat ? MAT(mat) * VEC(v) : VEC(v);
+	*(glm::vec4*)maxv = glm::max(vv, VEC(maxv));
+	*(glm::vec4*)minv = glm::min(vv, VEC(minv));
+}
+
+void 
+math3d_lerp(struct lastack *LS, const float v0[4], const float v1[4], float ratio, float r[4]){
+	*(glm::vec4*)r = glm::lerp(VEC(v0), VEC(v1), ratio);
+}
+
+void
+math3d_dir2radian(struct lastack *LS, const float v[4], float radians[2]){
+	const float PI = float(M_PI);
+	const float HALF_PI = 0.5f * PI;
+	
+	if (is_equal(v[1], 1.f)){
+		radians[0] = -HALF_PI;
+		radians[1] = 0.f;
+	} else if (is_equal(v[1], -1.f)){
+		radians[0] = HALF_PI;
+		radians[1] = 0.f;
+	} else if (is_equal(v[0], 1.f)){
+		radians[0] = 0.f;
+		radians[1] = HALF_PI;
+	} else if (is_equal(v[0], -1.f)){
+		radians[0] = 0.f;
+		radians[1] = -HALF_PI;
+	} else if (is_equal(v[2], 1.f)){
+		radians[0] = 0.f;
+		radians[1] = 0.f;
+	} else if (is_equal(v[2], -1.f)){
+		radians[0] = 0.f;
+		radians[1] = PI;
+	} else {
+		radians[0] = is_zero(v[1]) ? 0.f : std::asin(-v[1]);
+		radians[1] = is_zero(v[0]) ? 0.f : std::atan2(v[0], v[2]);
+	}
+}

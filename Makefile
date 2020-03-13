@@ -19,7 +19,10 @@ $(ODIR)/mathfunc.o : mathfunc.cpp | $(ODIR)
 $(ODIR)/mathadapter.o : mathadapter.c | $(ODIR)
 	$(CC) -c $(CFLAGS) -o $@ $^ $(LUAINC)
 
-$(OUTPUT)math3d.dll : $(ODIR)/linalg.o $(ODIR)/math3d.o $(ODIR)/mathfunc.o $(ODIR)/mathadapter.o
+$(ODIR)/testadapter.o : testadapter.c | $(ODIR)
+	$(CC) -c $(CFLAGS) -o $@ $^ $(LUAINC)
+
+$(OUTPUT)math3d.dll : $(ODIR)/linalg.o $(ODIR)/math3d.o $(ODIR)/mathfunc.o $(ODIR)/mathadapter.o $(ODIR)/testadapter.o
 	$(CXX) --shared $(CFLAGS) -o $@ $^ -lstdc++ $(LUALIB)
 
 $(ODIR) :

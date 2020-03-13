@@ -6,7 +6,9 @@ ref1.m = { s = 10, r = { axis = {1,0,0}, r = math.rad(60) },  t = { 1,2,3 } }
 local ref2 = math3d.ref()
 ref2.v = math3d.vector(1,2,3,4)
 print("ref1", ref1)
+print("ref1 value", math3d.tostring(math3d.matrix(ref1)))
 print(ref2)
+print("ref2 value", math3d.tostring(math3d.vector(ref2)))
 ref2.v = math3d.pack("dddd", 1,2,3,4)
 print(ref2)
 ref2.v = math3d.vector(ref2, 1)
@@ -21,7 +23,7 @@ for i = 1,4 do
 end
 
 print "===SRT==="
-ref1.m = { s = 2, r = { 0, math.rad(60), 0 }, t = { 1,2,3} }
+ref1.m = { s = 1, r = { 0, math.rad(60), 0 }, t = { 1,2,3} }
 print(ref1)
 local s,r,t = math3d.srt(ref1)
 print("S = ", math3d.tostring(s))
@@ -69,7 +71,15 @@ print("inverse", ref2, "=", math3d.tostring(math3d.inverse(ref2)))
 print("inverse", ref3, "=", math3d.tostring(math3d.inverse(ref3)))
 print("reciprocal", ref2, "=", math3d.tostring(math3d.reciprocal(ref2)))
 
-print "===VIEW&PROJECTION MATRIX"
+print "===MULADD==="
+do
+	local v1, v2 = math3d.vector(1, 2, 3, 0), math3d.vector(1, 0, 0, 0)
+	local p = math3d.vector(4, 1, 0, 1)
+	local r = math3d.muladd(v1, v2, p)
+	print("muladd:", math3d.tostring(v1), math3d.tostring(v2), math3d.tostring(p), "=", math3d.tostring(r))
+end
+
+print "===VIEW&PROJECTION MATRIX==="
 do
 	local eyepos = math3d.vector{0, 5, -10}
 	local at = math3d.vector {0, 0, 0}
@@ -142,12 +152,19 @@ local matrix = adapter.matrix(testfunc.matrix2, 1)	-- convert all mat
 local var = adapter.variant(testfunc.vector, testfunc.matrix1, 1)
 local format = adapter.format(testfunc.variant, testfunc.format, 2)
 local mvq = adapter.getter(testfunc.getmvq, "mvq")	-- getmvq will return matrix, vector, quat
+local matrix2_v = adapter.format(testfunc.matrix2, "mm", 1)
+local retvec = adapter.output_vector(testfunc.retvec, 1)
 print(vector(ref2, math3d.vector{1,2,3}))
 print(matrix1(ref1))
 print(matrix2(ref1,ref1))
+print(matrix2_v(ref1,ref1))
 print(matrix(ref1,ref1))
 print(var(ref1))
 print(var(ref2))
 print(format("mv", ref1, ref2))
 local m,v, q = mvq()
 print(math3d.tostring(m), math3d.tostring(v), math3d.tostring(q))
+
+local v1,v2 =retvec()
+print(math3d.tostring(v1), math3d.tostring(v2))
+
